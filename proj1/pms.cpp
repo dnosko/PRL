@@ -34,10 +34,12 @@ void merge(int procs_id, unsigned count){
     while (processed_elements < count) {
         // TODO ?? Q1 a Q2 pointre vymena????
         int received = 0;
+        unsigned processed_elements_q1 = 0, processed_elements_q2 = 0;
+        MPI_Status recv_status;
+        unsigned char element;
+
         // fill queues until conditions for queues are met
         while(receive) {
-            MPI_Status recv_status;
-            unsigned char element;
 
             MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id -1, received % QUEUE_COUNT, MPI_COMM_WORLD, &recv_status);
             if (firstQueue)
@@ -56,8 +58,21 @@ void merge(int procs_id, unsigned count){
             receive = !receive;
         }
 
-        // compare elements and sent to next processor
-        
+        // compare elements and sent greater to next processor
+        while(processed_elements_q1 < max_queue_len && processed_elements_q2 < max_queue_len) {
+            if(queue1.front() > queue2.front()) {
+                //queue_send_n(Q2, 1, Q1_id, send_buffers, mpi_requests);
+                processed_elements_q1++;
+            }
+            else {
+                //ueue_send_n(Q1, 1, Q1_id, send_buffers, mpi_requests);
+                processed_elements_q2++;
+                if(processed_elements_q2 != max_queue_len) {
+                    MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id -1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
+                    queue2.push(element);
+                }
+            }
+        }
 
     }
 
@@ -87,7 +102,6 @@ void pipeline_merge_sort(queue<unsigned  char> seq, unsigned count, int procs_id
 }
 
 int main(int argc, char** argv) {
-
     int size;
     int procs_id;
     static const unsigned count = 16; //TODO zobrat ako parameter? popr spocitat zo suboru
