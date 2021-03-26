@@ -35,136 +35,72 @@ void send_while(queue<unsigned char> queue, int queue_id, MPI_Request* request){
     }
 }
 
-
 /* middle processors */
 void merge(unsigned count){
     unsigned max_queue_len;
-    unsigned processed_elements = 0;
+    unsigned queue_id = 0; // to which queue send next
+    unsigned processed_elements = 0, processed_q1 = 0, processed_q2 = 0;
+
     queue<unsigned char> queue1, queue2;
-    bool firstQueue = true; // first and second queues alternate
-    bool receive = true;
-    unsigned char *send = nullptr;
-    auto *mpi_Request = (MPI_Request *) calloc(count, sizeof(MPI_Request));
 
-    // max len = 2^(id - 1)
-    max_queue_len = 1 << (procs_id - 1);
-    while (processed_elements < count) {
-        // TODO ?? Q1 a Q2 pointre vymena????
-        int received = 0;
-        unsigned processed_elements_q1 = 0, processed_elements_q2 = 0;
-        MPI_Status recv_status;
-        unsigned char element;
+    unsigned char element;
+    unsigned char send_element;
+    MPI_Status recv_status;
 
-        // fill queues until conditions for queues are met
-        while(receive) {
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id -1, received % QUEUE_COUNT, MPI_COMM_WORLD, &recv_status);
-            cout << "DEBUG: RECV CISLO " << element << "RANK DOSTAL : " << procs_id << endl;
-            if (firstQueue)
+
+    max_queue_len = 1 << (procs_id-1);
+
+    /*for(int i = 0; i < count; i++) {
+        MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, QUEUE_1, MPI_COMM_WORLD, &recv_status);
+        //queue2.push(element);
+        //MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, 1, MPI_COMM_WORLD, &recv_status);
+        printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
+    }*/
+
+    unsigned max_elements = max_queue_len*2;
+    while(processed_elements < count){
+        if(queue1.size() < max_queue_len) {
+            for (int i = 0; i < max_queue_len; i++) {
+                MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_1, MPI_COMM_WORLD, &recv_status);
+                printf("DEBUG: TAG 0 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
                 queue1.push(element);
-            else
-                queue2.push(element);
-
-            firstQueue = !firstQueue;
-
-            if(queue1.size() < max_queue_len)
-                continue;
-
-            if(queue2.empty())
-                continue;
-
-            receive = !receive;
+            }
         }
 
-        // compare elements and sent greater to next processor
-        while(processed_elements_q1 < max_queue_len && processed_elements_q2 < max_queue_len) {
-            int queue_id;
-            queue<unsigned char> act_queue;
+        if(queue2.empty()) {
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
+            queue2.push(element);
+            printf("DEBUG:  TAG 1 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
+        }
 
-            if(queue1.front() > queue2.front()) {
-                //queue_send_n(Q2, 1, Q1_id, send_buffers, mpi_requests);
-                processed_elements_q1++;
-                queue_id = 1;
-                act_queue = queue1;
-                queue1.pop();
-            }
-            else {
-                //ueue_send_n(Q1, 1, Q1_id, send_buffers, mpi_requests);
-                processed_elements_q2++;
-                queue_id = 2;
-                act_queue = queue2;
-                queue2.pop();
-                if(processed_elements_q2 != max_queue_len) {
-                    MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id -1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
-                    queue2.push(element);
-                    cout << "DEBUG: RECV CISLO " << element << "RANK DOSTAL : " << procs_id << endl;
+        if(queue1.size() <= max_queue_len && queue2.size() == 1) {
+            for(unsigned m = 0; m < max_elements; m++ ){
+                if(queue1.front() > queue2.front()) {
+                    send_element = queue1.front();
+                    queue1.pop();
+                    processed_q1++;
                 }
+                else {
+                    send_element = queue2.front();
+                    queue2.pop();
+                    processed_q2++;
+                }
+                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id % QUEUE_COUNT, MPI_COMM_WORLD);
+                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n",queue_id% QUEUE_COUNT, send_element, procs_id);
             }
-
-            *send = act_queue.front();
-            MPI_Isend(send,1, MPI_UNSIGNED_CHAR, procs_id+1, queue_id, MPI_COMM_WORLD,mpi_Request);
-            cout << "DEBUG: SEND CISLO " << send << "RANK POSIELA : " << procs_id << endl;
-
+            queue_id++;
+            processed_elements += processed_q1 + processed_q2;
         }
-
-        while(!queue1.empty()) {
-            *send = queue1.front();
-            queue1.pop();
-            MPI_Isend(send,1, MPI_UNSIGNED_CHAR, procs_id+1, 1, MPI_COMM_WORLD,mpi_Request);
-            cout << "DEBUG: SEND CISLO " << send << "RANK POSIELA : " << procs_id << endl;
-        }
-
-        processed_elements_q2 += queue2.size();
-        while(!queue2.empty()){
-            *send = queue2.front();
-            queue2.pop();
-            MPI_Isend(send,1, MPI_UNSIGNED_CHAR, procs_id+1, 2, MPI_COMM_WORLD,mpi_Request);
-            cout << "DEBUG: SEND CISLO " << send << "RANK POSIELA : " << procs_id << endl;
-        }
-
-        MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id -1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
-        queue2.push(element);
-        cout << "DEBUG: RECV CISLO " << element << "RANK DOSTAL : " << procs_id << endl;
-        processed_elements_q2 += queue2.size();
-
-        send_while(queue2,2, mpi_Request);
-
-        firstQueue = !firstQueue;
-        processed_elements += 2*max_queue_len;
-
     }
 
-    free(mpi_Request);
-    free(send);
-
-}
-
-/* unordered seq, number of numbers in seq, procs_id  */
-void pipeline_merge_sort(queue<unsigned  char> seq, unsigned count){
-    int act_number;
-    int r;
-    MPI_Request send_requests[count];
-
-    if (procs_id == 0) { // first processor
-        for (unsigned i = 0; i < count - 1; ++i) {
-            act_number = seq.front();
-            seq.pop();
-            MPI_Isend(&act_number,1, MPI_INT, procs_id+1,i % QUEUE_COUNT, MPI_COMM_WORLD,&send_requests[i] );
-        }
-
-        r = MPI_Waitall(count, send_requests, MPI_STATUSES_IGNORE);
-        if (r != MPI_SUCCESS)
-            MPI_Abort(MPI_COMM_WORLD, -EPIPE);
-    }
-    else {
-        merge(count);
-    }
 }
 
 int main(int argc, char** argv) {
     int size;
-    static const unsigned count = 16; //TODO zobrat ako parameter? popr spocitat zo suboru
+    static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count];
     FILE *fp;
+    char filename[] = "numbers";
     //queue<unsigned char> input_seq;
 
     // MPI INIT
@@ -175,7 +111,7 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &procs_id);
 
     // read file to queue
-    fp = fopen("numbers","rb");
+    fp = fopen(filename,"rb");
     if (!fp) {
         perror("fopen");
         return -1;
@@ -189,25 +125,16 @@ int main(int argc, char** argv) {
         for(unsigned char i : buffer) {
             printf("%d ", i);
         }
+        cout << endl;
         for(int i = count-1; i >= 0; i--) {
             send = buffer[i];
-            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, 0, MPI_COMM_WORLD);
+            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, (i+1) % QUEUE_COUNT, MPI_COMM_WORLD);
         }
-        cout << endl;
     }
     else {
-        //pipeline merge sort -> postupne
-        for(int i = 0; i < count; i++) {
-            unsigned char element;
-            MPI_Status recv_status;
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, 0, MPI_COMM_WORLD, &recv_status);
-            //queue2.push(element);
-            printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
-        }
-        //cout << "DEBUG: RECV CISLO " << (unsigned)element << " RANK DOSTAL : " << procs_id << endl;
+        printf("RANK %d \n", procs_id);
+        merge(count);
     }
-
-    //input_seq = reverse_queue_from_array(buffer, count);
 
     // check if number of processors is according to log(count)/log(2) + 1
     //pipeline_merge_sort(input_seq, count);
