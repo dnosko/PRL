@@ -26,23 +26,24 @@ queue<unsigned char> reverse_queue_from_array(unsigned char *array, int numbers)
     return q;
 }
 
-void send_data(queue<unsigned char> queue, int n, int queue_id, MPI_Request* request){
+void send_data(queue<unsigned char>* queue, int n, unsigned queue_id, MPI_Request *requests){
 
     /*  last processor prints to output*/
     if (procs_id == world_rank - 1) {
         for (int i = 0; i < n; ++i) {
-            printf("%d\n", (int)  queue.front());
-            queue.pop();
+            printf("%d\n", (int)  queue->front());
+            queue->pop();
         }
         return;
     }
 
-    unsigned char* send;
+    unsigned char send;
     for(int i = 0; i < n; i++) {
-        *send = queue.front();
-        queue.pop();
-        MPI_Isend(send,1, MPI_UNSIGNED_CHAR, procs_id+1, queue_id, MPI_COMM_WORLD,request);
-        cout << "DEBUG: SEND CISLO " << send << "RANK POSIELA : " << procs_id << endl;
+        send = queue->front();
+        queue->pop();
+        MPI_Isend(&send,1, MPI_UNSIGNED_CHAR, procs_id+1, queue_id, MPI_COMM_WORLD, requests);
+        printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id, send,
+               procs_id);
     }
 }
 
@@ -65,8 +66,7 @@ void merge(unsigned count){
     unsigned char element;
     unsigned char send_element;
     MPI_Status recv_status;
-
-    int max_processor = world_rank -1;
+    auto *requests = (MPI_Request *) calloc(count, sizeof(MPI_Request));
 
 
     max_queue_len = 1 << (procs_id-1);
@@ -81,16 +81,16 @@ void merge(unsigned count){
     unsigned max_elements = max_queue_len*2;
     while(processed_elements < count){
         if(queue1.size() < max_queue_len) {
-            int get_q1 = max_queue_len - queue1.size();
-            printf("DEBUG*********** SIZE OF Q1 get******** %d RANK %d\n", get_q1, procs_id);
-            for (int i = 0; i < get_q1; i++) {
+            unsigned Q_size = queue1.size();
+            unsigned get_q1 = max_queue_len - Q_size;
+            for (unsigned i = 0; i < get_q1; i++) {
                 MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1,QUEUE_1, MPI_COMM_WORLD, &recv_status);
                 printf("DEBUG: TAG 0 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
                 queue1.push(element);
             }
         }
 
-        if(queue2.empty()) {
+        if(queue2.size() < max_queue_len) {
             MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
             queue2.push(element);
             printf("DEBUG:  TAG 1 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
@@ -99,27 +99,26 @@ void merge(unsigned count){
         if(queue1.size() <= max_queue_len && queue2.size() == 1) {
             for(unsigned m = 0; m < max_elements; m++ ){
                 if(queue1.front() > queue2.front()) {
-                    send_element = queue1.front();
-                    queue1.pop();
+                    send_data(&queue1,1,queue_id, requests);
                     ++processed_q1;
                 }
                 else {
-                    send_element = queue2.front();
-                    queue2.pop();
+                    send_data(&queue2,1,queue_id, requests);
                     ++processed_q2;
-                }
-                if(world_rank-1 == procs_id) {
-                    //processed_elements = processed_q1 + processed_q2;
-                    printf("%d\n", send_element);
-                }
-                else {
-                    MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
-                    printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
-                           procs_id);
                 }
             }
             queue_id = (queue_id +1) % QUEUE_COUNT;
         }
+
+        if(!queue2.empty()) {
+            send_data(&queue2,1,1,requests);
+            ++processed_q2;
+        }
+
+
+        //if(!queue1.empty()){
+
+        //}
 
         //assert(queue1.empty() || queue2.empty());
 
@@ -146,9 +145,9 @@ void merge(unsigned count){
                        procs_id);
 
         }*/
-        processed_elements = processed_q1 + processed_q2;
+        processed_elements += 2 * max_queue_len;
     }
-
+    free(requests);
 }
 
 int main(int argc, char** argv) {
@@ -156,6 +155,7 @@ int main(int argc, char** argv) {
     unsigned char buffer[count];
     FILE *fp;
     char filename[] = "numbers";
+    MPI_Request  requests[count];
     //queue<unsigned char> input_seq;
 
     // MPI INIT
@@ -176,16 +176,18 @@ int main(int argc, char** argv) {
 
 
     if (procs_id == 0){
-        int send;
+        int send, j = 0;
         for(unsigned char i : buffer) {
             printf("%d ", i);
         }
         cout << endl;
         for(int i = count-1; i >= 0; i--) {
             send = buffer[i];
-            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, (i+1)% QUEUE_COUNT, MPI_COMM_WORLD);
+            MPI_Isend(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, (i+1)% QUEUE_COUNT, MPI_COMM_WORLD, &requests[j]);
             //printf("num %d tag %d \n",send, (i+1)%QUEUE_COUNT);
+            j++;
         }
+        MPI_Waitall(count, requests, MPI_STATUSES_IGNORE);
     }
     else {
         merge(count);
