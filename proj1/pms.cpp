@@ -2,10 +2,12 @@
 #include <mpi.h>
 #include <queue>
 #include <zconf.h>
+#include <assert.h>
 
 using namespace std;
 
 static int procs_id;
+static int world_rank;
 
 enum {
     QUEUE_1 , //?? TODO od 1 alebo od 0 ??
@@ -60,8 +62,9 @@ void merge(unsigned count){
     unsigned max_elements = max_queue_len*2;
     while(processed_elements < count){
         if(queue1.size() < max_queue_len) {
-            for (int i = 0; i < max_queue_len; i++) {
-                MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_1, MPI_COMM_WORLD, &recv_status);
+            int get_q1 = max_queue_len - queue1.size();
+            for (int i = 0; i < get_q1; i++) {
+                MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1,QUEUE_1, MPI_COMM_WORLD, &recv_status);
                 printf("DEBUG: TAG 0 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
                 queue1.push(element);
             }
@@ -85,18 +88,43 @@ void merge(unsigned count){
                     queue2.pop();
                     processed_q2++;
                 }
-                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id % QUEUE_COUNT, MPI_COMM_WORLD);
-                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n",queue_id% QUEUE_COUNT, send_element, procs_id);
+                if(world_rank-1 == procs_id) {
+                    //processed_elements = processed_q1 + processed_q2;
+                    printf("%d\n", send_element);
+                }
+                else {
+                    MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
+                    printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
+                           procs_id);
+                }
             }
-            queue_id++;
-            processed_elements += processed_q1 + processed_q2;
+            queue_id = (queue_id +1) % QUEUE_COUNT;
         }
+
+        //assert(queue1.empty() || queue2.empty());
+
+        while (!queue1.empty()) {
+            send_element = queue1.front();
+            queue1.pop();
+            processed_q1++;
+                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
+                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
+                       procs_id);
+        }
+        while(!queue2.empty()){
+            send_element = queue2.front();
+            queue2.pop();
+            processed_q2++;
+                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
+                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
+                       procs_id);
+        }
+        processed_elements = processed_q1 + processed_q2;
     }
 
 }
 
 int main(int argc, char** argv) {
-    int size;
     static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count];
     FILE *fp;
@@ -106,7 +134,7 @@ int main(int argc, char** argv) {
     // MPI INIT
     MPI_Init(&argc, &argv);
     // Get the number of processes
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_rank);
     // Get the id of the process
     MPI_Comm_rank(MPI_COMM_WORLD, &procs_id);
 
@@ -122,17 +150,18 @@ int main(int argc, char** argv) {
 
     if (procs_id == 0){
         int send;
+        int queue_id = 0;
         for(unsigned char i : buffer) {
             printf("%d ", i);
         }
         cout << endl;
         for(int i = count-1; i >= 0; i--) {
             send = buffer[i];
-            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, (i+1) % QUEUE_COUNT, MPI_COMM_WORLD);
+            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, (i+1)% QUEUE_COUNT, MPI_COMM_WORLD);
+            //printf("num %d tag %d \n",send, (i+1)%QUEUE_COUNT);
         }
     }
     else {
-        printf("RANK %d \n", procs_id);
         merge(count);
     }
 
