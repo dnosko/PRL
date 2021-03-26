@@ -185,9 +185,13 @@ int main(int argc, char** argv) {
 
 
     if (procs_id == 0){
+        int send;
         for(unsigned char i : buffer) {
             printf("%d ", i);
-            MPI_Send(&i,1, MPI_UNSIGNED_CHAR, procs_id+1,0,MPI_COMM_WORLD);
+        }
+        for(int i = count-1; i >= 0; i--) {
+            send = buffer[i];
+            MPI_Send(&send, 1, MPI_UNSIGNED_CHAR, procs_id + 1, 0, MPI_COMM_WORLD);
         }
         cout << endl;
     }
@@ -196,7 +200,7 @@ int main(int argc, char** argv) {
         for(int i = 0; i < count; i++) {
             unsigned char element;
             MPI_Status recv_status;
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, 0, MPI_COMM_WORLD, &recv_status);
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, 0, MPI_COMM_WORLD, &recv_status);
             //queue2.push(element);
             printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
         }
