@@ -1,6 +1,7 @@
 #include <iostream>
 #include <mpi.h>
 #include <queue>
+#include <zconf.h>
 
 using namespace std;
 
@@ -164,7 +165,7 @@ int main(int argc, char** argv) {
     static const unsigned count = 16; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count];
     FILE *fp;
-    queue<unsigned char> input_seq;
+    //queue<unsigned char> input_seq;
 
     // MPI INIT
     MPI_Init(&argc, &argv);
@@ -184,14 +185,28 @@ int main(int argc, char** argv) {
 
 
     if (procs_id == 0){
-        for(unsigned char i : buffer)
+        for(unsigned char i : buffer) {
             printf("%d ", i);
+            MPI_Send(&i,1, MPI_UNSIGNED_CHAR, procs_id+1,0,MPI_COMM_WORLD);
+        }
+        cout << endl;
+    }
+    else {
+        //pipeline merge sort -> postupne
+        for(int i = 0; i < count; i++) {
+            unsigned char element;
+            MPI_Status recv_status;
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, 0, MPI_COMM_WORLD, &recv_status);
+            //queue2.push(element);
+            printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
+        }
+        //cout << "DEBUG: RECV CISLO " << (unsigned)element << " RANK DOSTAL : " << procs_id << endl;
     }
 
-    input_seq = reverse_queue_from_array(buffer, count);
+    //input_seq = reverse_queue_from_array(buffer, count);
 
     // check if number of processors is according to log(count)/log(2) + 1
-    pipeline_merge_sort(input_seq, count);
+    //pipeline_merge_sort(input_seq, count);
 
     MPI_Barrier(MPI_COMM_WORLD);
     // Finalize the MPI environment.
