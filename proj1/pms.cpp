@@ -110,11 +110,13 @@ void merge(unsigned count){
         if(compared_queue_number == 1) {
             cout << "Q1" << endl;
             send_data(&queue1, 1, queue_id, requests);
+            ++processed_q1;
             compared_queue_number = -1;
         }
         else if(compared_queue_number == 2){
             cout << "Q2" << endl;
             send_data(&queue2,1,queue_id, requests);
+            ++processed_q2;
             compared_queue_number = -1;
         }
         else if(queue1.size() <= max_queue_len && queue2.size() == 1){
@@ -131,6 +133,10 @@ void merge(unsigned count){
                 compared = 2;
                 compared_queue_number = 1;
             }
+        }
+
+        if(processed_q1 == max_queue_len || processed_q2 == max_queue_len){
+            queue_id = !queue_id;
         }
 
         /*else if(compared < max_queue_len) { // send previous compareed element
