@@ -83,61 +83,89 @@ void merge(unsigned count){
     }*/
 
     unsigned recv = 0;
-    unsigned compared = 0;
+    int compared = -1; // no number is being compared if -1, if else then send this number
+    int compared_queue_number = -1; // number of the compared queue from which to send the number
     unsigned last_procs = world_rank -1;
     bool start_cpu = false;
-    unsigned queue_id_send = 0;
+    unsigned take_from_Q1 = 0;
     unsigned max_elements = max_queue_len*2;
-    for(unsigned i = 0; i < end_alg; i++){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
-        cout << "NEW CYCLE" << endl << endl;
+    while(processed_elements < count){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
+        //cout << "NEW CYCLE" << endl << endl;
         //recv elements
         if(recv < count) {
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, queue_id, MPI_COMM_WORLD, &recv_status);
             recv++;
-            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", queue_id, element, procs_id);
-            if (queue_id == QUEUE_1)
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, (recv+1) % QUEUE_COUNT, MPI_COMM_WORLD, &recv_status);
+            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", (recv+1)% QUEUE_COUNT, element, procs_id);
+            if ((recv+1) % QUEUE_COUNT == QUEUE_1) {
                 queue1.push(element);
-            else
+            }
+            else {
                 queue2.push(element);
-            //send_data(&queue1,1, queue_id, requests);
-            queue_id = (queue_id + 1) % QUEUE_COUNT;
+            }
         }
 
-        // send elements
-        if (compared < max_queue_len || procs_id == last_procs){
-            //if queeue empty, prinnt from another
-            if(procs_id == last_procs ) {
-                if (queue1.empty()) {
-                    print_queue_while_not_empty(&queue2);
-                } else if (queue2.empty()) {
-                    print_queue_while_not_empty(&queue1);
-                }
+
+        /***                  sending                ***/
+        // if there were numbers from previous comparision thne push those
+        if(compared_queue_number == 1) {
+            cout << "Q1" << endl;
+            send_data(&queue1, 1, queue_id, requests);
+            compared_queue_number = -1;
+        }
+        else if(compared_queue_number == 2){
+            cout << "Q2" << endl;
+            send_data(&queue2,1,queue_id, requests);
+            compared_queue_number = -1;
+        }
+        else if(queue1.size() <= max_queue_len && queue2.size() == 1){
+            if (queue1.front() > queue2.front()) {
+                send_data(&queue1, 1, queue_id, requests);
+                ++processed_q1;
+                take_from_Q1 = QUEUE_2;
+                compared = 1;
+                compared_queue_number = 2;
+            } else {
+                send_data(&queue2, 1, queue_id, requests);
+                ++processed_q2;
+                take_from_Q1 = QUEUE_1;
+                compared = 2;
+                compared_queue_number = 1;
             }
-            if (numQ1 == 0) {
+        }
+
+        /*else if(compared < max_queue_len) { // send previous compareed element
+
+            if (processed_q1 == max_queue_len) {
                 send_data(&queue2,1,queue_id, requests);
             }
-            else if(numQ2 == 0){
+            else if(processed_q2 == max_queue_len){
                 send_data(&queue1,1,queue_id, requests);
             }
             else {
                 if (queue1.front() > queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
-                    queue_id_send = QUEUE_1;
+                    take_from_Q1 = QUEUE_2;
                 } else {
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
-                    queue_id_send = QUEUE_2;
+                    take_from_Q1 = QUEUE_1;
                 }
             }
             compared++;
         }
         else {
-            if(queue_id_send == QUEUE_1) {
-                send_data(&queue2,1, queue_id, requests);
+            if(take_from_Q1) {
+                send_data(&queue1,1, queue_id, requests);
+                //processed_q1++;
             }
+            else {
+                send_data(&queue2,1,queue_id, requests);
+                //processed_q2++;
+            }
+            compared = 0;
         }
-        /*
+
         if(queue1.size() == max_queue_len && queue2.size() == 1){
             start_cpu = true;
             for(unsigned m = 0; m < max_queue_len; m++) {
@@ -151,7 +179,9 @@ void merge(unsigned count){
             }
             // processed += processed + max_queue_len;
         }*/
-        /*queue_id_send = (queue_id_send + 1) % QUEUE_COUNT;
+
+
+        /*take_from_Q1 = (take_from_Q1 + 1) % QUEUE_COUNT;
         if (start_cpu){
             if(queue2.empty()){
                 send_data(&queue1,1,queue_id, requests);
@@ -162,9 +192,6 @@ void merge(unsigned count){
             send_data(&queue1,1,queue_id, requests);
             ++processed_q1;
         }*/
-
-
-
     }
         /*if(queue1.size() < max_queue_len) {
             unsigned Q_size = queue1.size();
