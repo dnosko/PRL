@@ -95,31 +95,33 @@ void merge(unsigned count){
     unsigned take_from_Q1 = 0;
     unsigned max_elements = max_queue_len*2;
     unsigned tag = 0;
-    unsigned mod = (1 << (procs_id-1));
-    unsigned change_tag = 0;
+    unsigned change_after = (1 << (procs_id-1));
+    unsigned counter = change_after;
+    unsigned change_tag = -1;
     while(processed_elements < count){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
         //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
         if(recv < count) {
-            change_tag = (recv) % mod;
+            if(counter == 0) {
+                tag = !tag;
+                counter = change_after;
+            }
             //tag = (recv+1) % (1 << (procs_id));
-            //cout  <<"CHANGE Q "<< mod<< " TAG_CHANGE " << change_tag << " RANK " << procs_id << endl;
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, tag, MPI_COMM_WORLD, &recv_status);
+            //cout  <<"COUNTER "<< counter << " change_after " << change_after << " RANK " << procs_id << endl;
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status);
             printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", tag, element, procs_id);
-            //if ((recv+1) % QUEUE_COUNT == QUEUE_1) {
-            //change_q--;
-            if(queue1.empty() || !queue2.empty()){
+
+            //if(queue1.empty() || !queue2.empty()){
+            if(tag == 0){
                 queue1.push(element);
             }
             else {
                 queue2.push(element);
             }
+            recv++;
+            counter--;
             //printf("%d Q1FRONT \n", queue1.front());
             //printf("%d Q2FRONT \n", queue2.front());
-            if(change_tag == 0) {
-                tag = !tag;
-            }
-            recv++;
         }
 
         /*if(queue1.size() == max_queue_len_next || queue2.size() == max_queue_len_next){
@@ -152,9 +154,9 @@ void merge(unsigned count){
         }
         else {
             // if there were numbers from previous comparision thne push those
-
+            //cout << "SEND " << endl;
             if (compared_queue_number == 1) {
-                //cout << "Q1" << endl;
+               // cout << "Q1" << endl;
                 send_data(&queue1, 1, queue_id, requests);
                 ++processed_q1;
                 compared_queue_number = -1;
@@ -164,6 +166,8 @@ void merge(unsigned count){
                 ++processed_q2;
                 compared_queue_number = -1;
             } else if (queue1.size() <= max_queue_len && queue2.size() == 1) {
+                //cout << "SEND compare Q2 size " << queue2.size() << endl;
+                //printf("SEND compare Q2 size %d, front Q2 %d\n",queue2.size(), queue2.front());
                 if (queue1.front() > queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
