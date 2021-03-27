@@ -48,6 +48,7 @@ void send_data(queue<unsigned char>* queue, int n, unsigned queue_id, MPI_Reques
 }
 
 void print_queue(queue<unsigned char> queue){
+
     while(!queue.empty()) {
         printf(" %d ", queue.front());
         queue.pop();
@@ -68,6 +69,8 @@ void merge(unsigned count){
     MPI_Status recv_status;
     auto *requests = (MPI_Request *) calloc(count, sizeof(MPI_Request));
 
+    unsigned start_cycle = (1 <<(procs_id -1)) + (procs_id -1); // 2^(i-1) + i -1
+    unsigned end_cycle = (count -1) + start_cycle; // (n-1) + 2^(i-1) + i -1
 
     max_queue_len = 1 << (procs_id-1);
 
@@ -80,7 +83,17 @@ void merge(unsigned count){
 
     unsigned max_elements = max_queue_len*2;
     while(processed_elements < count){
-        if(queue1.size() < max_queue_len) {
+        //for (unsigned i = 0; i < count; i++) {
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1,queue_id, MPI_COMM_WORLD, &recv_status);
+            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n",queue_id, element, procs_id);
+            if(queue_id == QUEUE_1)
+                queue1.push(element);
+            else
+                queue2.push(element);
+            //send_data(&queue1,1, queue_id, requests);
+            queue_id = (queue_id + 1) % QUEUE_COUNT;
+        }
+        /*if(queue1.size() < max_queue_len) {
             unsigned Q_size = queue1.size();
             unsigned get_q1 = max_queue_len - Q_size;
             for (unsigned i = 0; i < get_q1; i++) {
@@ -90,68 +103,18 @@ void merge(unsigned count){
             }
         }
 
-        if(queue2.size() < max_queue_len) {
+        if(queue2.empty()) {
             MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
             queue2.push(element);
             printf("DEBUG:  TAG 1 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
-        }
-
-        if(queue1.size() <= max_queue_len && queue2.size() == 1) {
-            for(unsigned m = 0; m < max_elements; m++ ){
-                if(queue1.front() > queue2.front()) {
-                    send_data(&queue1,1,queue_id, requests);
-                    ++processed_q1;
-                }
-                else {
-                    send_data(&queue2,1,queue_id, requests);
-                    ++processed_q2;
-                }
-            }
-            queue_id = (queue_id +1) % QUEUE_COUNT;
-        }
-
-        if(!queue2.empty()) {
-            send_data(&queue2,1,1,requests);
-            ++processed_q2;
-        }
-
-
-        //if(!queue1.empty()){
-
-        //}
-
-        //assert(queue1.empty() || queue2.empty());
-
-        /*while (queue1.size() > 0) {
-            if (queue1.empty())
-                break;
-            send_element = queue1.front();
-            //print_queue(queue1);
-            queue1.pop();
-            processed_q1++;
-                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
-                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
-                       procs_id);
         }*/
-        /*while(!queue2.empty()){
-            if (queue2.empty())
-                break;
-            send_element = queue2.front();
-            printf("*********Q SIZE %lu \n", queue2.size());
-            queue2.pop();
-            ++processed_q2;
-                MPI_Send(&send_element, 1, MPI_UNSIGNED_CHAR, procs_id + 1, queue_id, MPI_COMM_WORLD);
-                printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id % QUEUE_COUNT, send_element,
-                       procs_id);
 
-        }*/
-        processed_elements += 2 * max_queue_len;
-    }
+
     free(requests);
 }
 
 int main(int argc, char** argv) {
-    static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
+    static const unsigned count = 4; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count];
     FILE *fp;
     char filename[] = "numbers";
