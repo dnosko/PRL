@@ -104,6 +104,10 @@ void merge(unsigned count){
         //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
         if(recv < count) {
+            if(recv == (count-2)){
+                change_after = 1;
+            }
+
             if(counter == 0) {
                 tag = !tag;
                 counter = change_after;
@@ -182,31 +186,43 @@ void merge(unsigned count){
         }
         else {
             // if there were numbers from previous comparision thne push those
-            //cout << "SEND " << endl;
+            //cout << "Q COMPARRED " <<  processed_q2 << endl;
+            unsigned last_element = (count/2) -2;
+            if(last_element == processed_q2)
+                compared_queue_number = -1;
             if (compared_queue_number == 1) {
-               // cout << "Q1" << endl;
                 send_data(&queue1, 1, queue_id, requests);
                 ++processed_q1;
-                compared_queue_number = -1;
+                    compared_queue_number = -1;
             } else if (compared_queue_number == 2) {
-                //cout << "Q2" << endl;
                 send_data(&queue2, 1, queue_id, requests);
                 ++processed_q2;
                 compared_queue_number = -1;
-            } else if (queue1.size() <= max_queue_len && queue2.size() == 1) {
+            } else if ((queue1.size() <= max_queue_len && queue2.size() == 1) || (processed_q2 == last_element )) {
                 //cout << "SEND compare Q2 size " << queue2.size() << endl;
-                //printf("SEND compare Q2 size %d, front Q2 %d\n",queue2.size(), queue2.front());
-                if (queue1.front() > queue2.front()) {
+                //printf("SEND compare Q2 size %d,  Q1 size %d\n",queue2.size(), queue1.size());
+                if (queue1.empty()) {
+                    //cout << "Q1 EMPTY" << endl;
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                } else if (queue2.empty()) {
+                    //cout << "Q2 EMPTY" << endl;
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                }
+                else if (queue1.front() > queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                     take_from_Q1 = QUEUE_2;
-                    compared = 1;
+                    compared = max_queue_len;
+                    //printf("COMPARED %d\n", compared);
                     compared_queue_number = 2;
                 } else {
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                     take_from_Q1 = QUEUE_1;
-                    compared = 2;
+                    compared = max_queue_len;
+                    //printf("COMPARED %d\n", compared);
                     compared_queue_number = 1;
                 }
             }
