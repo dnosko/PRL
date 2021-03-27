@@ -75,6 +75,8 @@ void merge(unsigned count){
 
     max_queue_len = 1 << (procs_id-1);
 
+    unsigned max_queue_len_next = 1 << (procs_id);
+
     /*for(int i = 0; i < count; i++) {
         MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, QUEUE_1, MPI_COMM_WORLD, &recv_status);
         //queue2.push(element);
@@ -87,10 +89,13 @@ void merge(unsigned count){
     int compared_queue_number = -1; // number of the compared queue from which to send the number
     unsigned last_procs = world_rank -1;
     bool start_cpu = false;
+
+
+    unsigned next_q1 = 0, next_q2 = 1;
     unsigned take_from_Q1 = 0;
     unsigned max_elements = max_queue_len*2;
     while(processed_elements < count){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
-        //cout << "NEW CYCLE" << endl << endl;
+        //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
         if(recv < count) {
             recv++;
@@ -104,41 +109,65 @@ void merge(unsigned count){
             }
         }
 
-
+        if(queue1.size() == max_queue_len_next || queue2.size() == max_queue_len_next){
+            cout << "MAX QLEN " << max_queue_len_next << "q1 next " << next_q1 << " Rank " << procs_id << endl;
+            queue_id = !queue_id;
+        }
         /***                  sending                ***/
-        // if there were numbers from previous comparision thne push those
-        if(compared_queue_number == 1) {
-            cout << "Q1" << endl;
-            send_data(&queue1, 1, queue_id, requests);
-            ++processed_q1;
-            compared_queue_number = -1;
-        }
-        else if(compared_queue_number == 2){
-            cout << "Q2" << endl;
-            send_data(&queue2,1,queue_id, requests);
-            ++processed_q2;
-            compared_queue_number = -1;
-        }
-        else if(queue1.size() <= max_queue_len && queue2.size() == 1){
-            if (queue1.front() > queue2.front()) {
+        if(procs_id == last_procs) {
+            if(queue1.empty()) {
+                send_data(&queue2, queue2.size(), queue_id, requests);
+                ++processed_q2;
+            }
+            else if(queue2.empty()){
+                send_data(&queue1, queue1.size(), queue_id, requests);
+                ++processed_q1;
+            }
+            /*else if (queue1.front() > queue2.front()) {
                 send_data(&queue1, 1, queue_id, requests);
                 ++processed_q1;
                 take_from_Q1 = QUEUE_2;
                 compared = 1;
-                compared_queue_number = 2;
+                //compared_queue_number = 2;
             } else {
                 send_data(&queue2, 1, queue_id, requests);
                 ++processed_q2;
                 take_from_Q1 = QUEUE_1;
                 compared = 2;
-                compared_queue_number = 1;
+                //compared_queue_number = 1;
+            } */
+        }
+        else {
+            // if there were numbers from previous comparision thne push those
+            if (compared_queue_number == 1) {
+                //cout << "Q1" << endl;
+                send_data(&queue1, 1, queue_id, requests);
+                ++processed_q1;
+                compared_queue_number = -1;
+            } else if (compared_queue_number == 2) {
+                //cout << "Q2" << endl;
+                send_data(&queue2, 1, queue_id, requests);
+                ++processed_q2;
+                compared_queue_number = -1;
+            } else if (queue1.size() <= max_queue_len && queue2.size() == 1) {
+                if (queue1.front() > queue2.front()) {
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                    take_from_Q1 = QUEUE_2;
+                    compared = 1;
+                    compared_queue_number = 2;
+                } else {
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                    take_from_Q1 = QUEUE_1;
+                    compared = 2;
+                    compared_queue_number = 1;
+                }
             }
+
         }
 
-        if(processed_q1 == max_queue_len || processed_q2 == max_queue_len){
-            queue_id = !queue_id;
-        }
-
+        processed_elements = processed_q1 + processed_q2;
         /*else if(compared < max_queue_len) { // send previous compareed element
 
             if (processed_q1 == max_queue_len) {
@@ -220,7 +249,7 @@ void merge(unsigned count){
 }
 
 int main(int argc, char** argv) {
-    static const unsigned count = 4; //TODO zobrat ako parameter? popr spocitat zo suboru
+    static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count];
     FILE *fp;
     char filename[] = "numbers";
@@ -243,6 +272,7 @@ int main(int argc, char** argv) {
     fread(buffer, sizeof(unsigned char),count,fp);
     fclose(fp);
 
+    int cycle = 0;
 
     if (procs_id == 0){
         int send, j = 0;
@@ -259,7 +289,7 @@ int main(int argc, char** argv) {
         MPI_Waitall(count, requests, MPI_STATUSES_IGNORE);
     }
     else {
-        merge(count);
+         merge(count);
     }
 
     // check if number of processors is according to log(count)/log(2) + 1
