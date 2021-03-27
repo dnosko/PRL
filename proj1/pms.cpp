@@ -42,7 +42,7 @@ void send_data(queue<unsigned char>* queue, int n, unsigned queue_id, MPI_Reques
         send = queue->front();
         queue->pop();
         MPI_Isend(&send,1, MPI_UNSIGNED_CHAR, procs_id+1, queue_id, MPI_COMM_WORLD, requests);
-        printf("DEBUG:  TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id, send,
+        printf("DEBUG: TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id, send,
                procs_id);
     }
 }
@@ -98,6 +98,8 @@ void merge(unsigned count){
     unsigned change_after = (1 << (procs_id-1));
     unsigned counter = change_after;
     unsigned change_tag = -1;
+
+    bool start_last_process = false;
     while(processed_elements < count){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
         //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
@@ -111,7 +113,11 @@ void merge(unsigned count){
             MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status);
             printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", tag, element, procs_id);
 
-            //if(queue1.empty() || !queue2.empty()){
+            /*if(queue1.empty() || !queue2.empty()) {
+                queue1.push(element);
+            }
+            else
+             */
             if(tag == 0){
                 queue1.push(element);
             }
@@ -130,27 +136,49 @@ void merge(unsigned count){
         }*/
         /***                  sending                ***/
         if(procs_id == last_procs) {
-            if(queue1.empty()) {
-                send_data(&queue2, queue2.size(), queue_id, requests);
-                ++processed_q2;
+            if(queue1.size() == max_queue_len && queue2.size() == 1) {
+                start_last_process = true;
+                if (queue1.front() > queue2.front()) {
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                    take_from_Q1 = QUEUE_2;
+                    compared = 1;
+                    //compared_queue_number = 2;
+                }
+                else {
+                    printf("Q1 front %d Q2 front %d\n", queue1.front(), queue2.front());
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                    take_from_Q1 = QUEUE_1;
+                    compared = 2;
+                    //compared_queue_number = 1;
+                }
             }
-            else if(queue2.empty()){
-                send_data(&queue1, queue1.size(), queue_id, requests);
-                ++processed_q1;
+            else if(start_last_process) {
+                if (queue1.empty()) {
+                    cout << "Q1 EMPTY" << endl;
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                } else if (queue2.empty()) {
+                    cout << "Q2 EMPTY" << endl;
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                } else if (queue1.front() > queue2.front()) {
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                    take_from_Q1 = QUEUE_2;
+                    compared = 1;
+                    //compared_queue_number = 2;
+                } else if (queue1.front() < queue2.front()) {
+                    send_data(&queue2, 1, queue_id, requests);
+                    printf("Q2 front %d Q1 front %d\n", queue2.front(), queue1.front());
+                    ++processed_q2;
+                    take_from_Q1 = QUEUE_1;
+                    compared = 2;
+                    //compared_queue_number = 1;
+                }
             }
-            /*else if (queue1.front() > queue2.front()) {
-                send_data(&queue1, 1, queue_id, requests);
-                ++processed_q1;
-                take_from_Q1 = QUEUE_2;
-                compared = 1;
-                //compared_queue_number = 2;
-            } else {
-                send_data(&queue2, 1, queue_id, requests);
-                ++processed_q2;
-                take_from_Q1 = QUEUE_1;
-                compared = 2;
-                //compared_queue_number = 1;
-            } */
+            //printf("OUT LAST Q2 front %d Q1 front %d\n",queue2.front(), queue1.front());
         }
         else {
             // if there were numbers from previous comparision thne push those
