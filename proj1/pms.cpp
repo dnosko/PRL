@@ -47,13 +47,12 @@ void send_data(queue<unsigned char>* queue, int n, unsigned queue_id, MPI_Reques
     }
 }
 
-void print_queue(queue<unsigned char> queue){
+void print_queue_while_not_empty(queue<unsigned char> *queue){
 
-    while(!queue.empty()) {
-        printf(" %d ", queue.front());
-        queue.pop();
+    while(!queue->empty()){
+        printf("%d\n", (int)  queue->front());
+        queue->pop();
     }
-    printf("\n\n\n");
 }
 
 /* middle processors */
@@ -72,6 +71,8 @@ void merge(unsigned count){
     unsigned start_cycle = (1 <<(procs_id -1)) + (procs_id -1); // 2^(i-1) + i -1
     unsigned end_cycle = (count -1) + start_cycle; // (n-1) + 2^(i-1) + i -1
 
+    unsigned end_alg = (1 << (world_rank-1)) + count + (world_rank -1); //algorithm ends in xth cycle
+
     max_queue_len = 1 << (procs_id-1);
 
     /*for(int i = 0; i < count; i++) {
@@ -81,18 +82,90 @@ void merge(unsigned count){
         printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
     }*/
 
+    unsigned recv = 0;
+    unsigned compared = 0;
+    unsigned last_procs = world_rank -1;
+    bool start_cpu = false;
+    unsigned queue_id_send = 0;
     unsigned max_elements = max_queue_len*2;
-    while(processed_elements < count){
-        //for (unsigned i = 0; i < count; i++) {
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1,queue_id, MPI_COMM_WORLD, &recv_status);
-            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n",queue_id, element, procs_id);
-            if(queue_id == QUEUE_1)
+    for(unsigned i = 0; i < end_alg; i++){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
+        cout << "NEW CYCLE" << endl << endl;
+        //recv elements
+        if(recv < count) {
+            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, queue_id, MPI_COMM_WORLD, &recv_status);
+            recv++;
+            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", queue_id, element, procs_id);
+            if (queue_id == QUEUE_1)
                 queue1.push(element);
             else
                 queue2.push(element);
             //send_data(&queue1,1, queue_id, requests);
             queue_id = (queue_id + 1) % QUEUE_COUNT;
         }
+
+        // send elements
+        if (compared < max_queue_len || procs_id == last_procs){
+            //if queeue empty, prinnt from another
+            if(procs_id == last_procs ) {
+                if (queue1.empty()) {
+                    print_queue_while_not_empty(&queue2);
+                } else if (queue2.empty()) {
+                    print_queue_while_not_empty(&queue1);
+                }
+            }
+            if (numQ1 == 0) {
+                send_data(&queue2,1,queue_id, requests);
+            }
+            else if(numQ2 == 0){
+                send_data(&queue1,1,queue_id, requests);
+            }
+            else {
+                if (queue1.front() > queue2.front()) {
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                    queue_id_send = QUEUE_1;
+                } else {
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                    queue_id_send = QUEUE_2;
+                }
+            }
+            compared++;
+        }
+        else {
+            if(queue_id_send == QUEUE_1) {
+                send_data(&queue2,1, queue_id, requests);
+            }
+        }
+        /*
+        if(queue1.size() == max_queue_len && queue2.size() == 1){
+            start_cpu = true;
+            for(unsigned m = 0; m < max_queue_len; m++) {
+                if (queue1.front() > queue2.front()) {
+                    send_data(&queue1, 1, queue_id, requests);
+                    ++processed_q1;
+                } else {
+                    send_data(&queue2, 1, queue_id, requests);
+                    ++processed_q2;
+                }
+            }
+            // processed += processed + max_queue_len;
+        }*/
+        /*queue_id_send = (queue_id_send + 1) % QUEUE_COUNT;
+        if (start_cpu){
+            if(queue2.empty()){
+                send_data(&queue1,1,queue_id, requests);
+                ++processed_q1;
+            }
+        }*/
+        /*else if(queue2.empty()){
+            send_data(&queue1,1,queue_id, requests);
+            ++processed_q1;
+        }*/
+
+
+
+    }
         /*if(queue1.size() < max_queue_len) {
             unsigned Q_size = queue1.size();
             unsigned get_q1 = max_queue_len - Q_size;
