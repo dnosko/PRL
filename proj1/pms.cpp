@@ -99,14 +99,19 @@ void merge(unsigned count){
     unsigned counter = change_after;
     unsigned change_tag = -1;
 
+    unsigned Q1_send = max_queue_len;
+    unsigned Q2_send = max_queue_len;
+
     bool start_last_process = false;
     while(processed_elements < count){ //TODO zmenit lebo na zaciatku posielam vsetko naraz
         //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
         if(recv < count) {
-            if(recv == (count-2)){
+            /*if(recv == (count-3)){
+                //cout << "CHANGE*****" << counter << recv << endl;
+                counter = 0;
                 change_after = 1;
-            }
+            }*/
 
             if(counter == 0) {
                 tag = !tag;
@@ -134,10 +139,6 @@ void merge(unsigned count){
             //printf("%d Q2FRONT \n", queue2.front());
         }
 
-        /*if(queue1.size() == max_queue_len_next || queue2.size() == max_queue_len_next){
-            cout << "MAX QLEN " << max_queue_len_next << "q1 next " << next_q1 << " Rank " << procs_id << endl;
-            queue_id = !queue_id;
-        }*/
         /***                  sending                ***/
         if(procs_id == last_procs) {
             if(queue1.size() == max_queue_len && queue2.size() == 1) {
@@ -188,31 +189,56 @@ void merge(unsigned count){
             // if there were numbers from previous comparision thne push those
             //cout << "Q COMPARRED " <<  processed_q2 << endl;
             unsigned last_element = (count/2) -2;
-            if(last_element == processed_q2)
-                compared_queue_number = -1;
+            //if(last_element == processed_q2)
+            //    compared_queue_number = -1;
+            /*cout << processed_q1 << "******" << processed_q2 << endl;
             if (compared_queue_number == 1) {
                 send_data(&queue1, 1, queue_id, requests);
                 ++processed_q1;
+                --compared;
+                if (compared == 0)
                     compared_queue_number = -1;
             } else if (compared_queue_number == 2) {
                 send_data(&queue2, 1, queue_id, requests);
                 ++processed_q2;
-                compared_queue_number = -1;
-            } else if ((queue1.size() <= max_queue_len && queue2.size() == 1) || (processed_q2 == last_element )) {
+                compared_queue_number = -1;*/
+            printf("Q1 %d  processed %d Q2 %d processed %d \n", Q1_send, processed_q1, Q2_send, processed_q2);
+
+            if(Q1_send == 0 && Q2_send == 0){
+                Q1_send = max_queue_len;
+                Q2_send = max_queue_len;
+            }
+
+            if(Q1_send == 0 && Q2_send != 0) {
+                printf("Q full\n");
+                send_data(&queue2, 1, queue_id, requests);
+                ++processed_q2;
+                --Q2_send;
+            }
+            else if(Q2_send == 0 && Q1_send != 0) {
+                printf("Q1 full\n");
+                send_data(&queue1, 1, queue_id, requests);
+                ++processed_q1;
+                --Q1_send;
+            }
+            else if ((queue1.size() <= max_queue_len && queue2.size() == 1)) {
                 //cout << "SEND compare Q2 size " << queue2.size() << endl;
                 //printf("SEND compare Q2 size %d,  Q1 size %d\n",queue2.size(), queue1.size());
                 if (queue1.empty()) {
                     //cout << "Q1 EMPTY" << endl;
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
+                    --Q2_send;
                 } else if (queue2.empty()) {
                     //cout << "Q2 EMPTY" << endl;
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
+                    --Q1_send;
                 }
                 else if (queue1.front() > queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
+                    --Q1_send;
                     take_from_Q1 = QUEUE_2;
                     compared = max_queue_len;
                     //printf("COMPARED %d\n", compared);
@@ -220,6 +246,7 @@ void merge(unsigned count){
                 } else {
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
+                    --Q2_send;
                     take_from_Q1 = QUEUE_1;
                     compared = max_queue_len;
                     //printf("COMPARED %d\n", compared);
@@ -230,81 +257,8 @@ void merge(unsigned count){
         }
 
         processed_elements = processed_q1 + processed_q2;
-        /*else if(compared < max_queue_len) { // send previous compareed element
 
-            if (processed_q1 == max_queue_len) {
-                send_data(&queue2,1,queue_id, requests);
-            }
-            else if(processed_q2 == max_queue_len){
-                send_data(&queue1,1,queue_id, requests);
-            }
-            else {
-                if (queue1.front() > queue2.front()) {
-                    send_data(&queue1, 1, queue_id, requests);
-                    ++processed_q1;
-                    take_from_Q1 = QUEUE_2;
-                } else {
-                    send_data(&queue2, 1, queue_id, requests);
-                    ++processed_q2;
-                    take_from_Q1 = QUEUE_1;
-                }
-            }
-            compared++;
-        }
-        else {
-            if(take_from_Q1) {
-                send_data(&queue1,1, queue_id, requests);
-                //processed_q1++;
-            }
-            else {
-                send_data(&queue2,1,queue_id, requests);
-                //processed_q2++;
-            }
-            compared = 0;
-        }
-
-        if(queue1.size() == max_queue_len && queue2.size() == 1){
-            start_cpu = true;
-            for(unsigned m = 0; m < max_queue_len; m++) {
-                if (queue1.front() > queue2.front()) {
-                    send_data(&queue1, 1, queue_id, requests);
-                    ++processed_q1;
-                } else {
-                    send_data(&queue2, 1, queue_id, requests);
-                    ++processed_q2;
-                }
-            }
-            // processed += processed + max_queue_len;
-        }*/
-
-
-        /*take_from_Q1 = (take_from_Q1 + 1) % QUEUE_COUNT;
-        if (start_cpu){
-            if(queue2.empty()){
-                send_data(&queue1,1,queue_id, requests);
-                ++processed_q1;
-            }
-        }*/
-        /*else if(queue2.empty()){
-            send_data(&queue1,1,queue_id, requests);
-            ++processed_q1;
-        }*/
     }
-        /*if(queue1.size() < max_queue_len) {
-            unsigned Q_size = queue1.size();
-            unsigned get_q1 = max_queue_len - Q_size;
-            for (unsigned i = 0; i < get_q1; i++) {
-                MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1,QUEUE_1, MPI_COMM_WORLD, &recv_status);
-                printf("DEBUG: TAG 0 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
-                queue1.push(element);
-            }
-        }
-
-        if(queue2.empty()) {
-            MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, QUEUE_2, MPI_COMM_WORLD, &recv_status);
-            queue2.push(element);
-            printf("DEBUG:  TAG 1 RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
-        }*/
 
 
     free(requests);
@@ -312,7 +266,7 @@ void merge(unsigned count){
 
 int main(int argc, char** argv) {
     static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
-    unsigned char buffer[count];
+    unsigned char buffer[count] = {12,103,151,124,169,99,231,100};//{1,5,3,2, 8, 7, 4, 6};;
     FILE *fp;
     char filename[] = "numbers";
     MPI_Request  requests[count];
@@ -326,13 +280,14 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &procs_id);
 
     // read file to queue
-    fp = fopen(filename,"rb");
+    /*fp = fopen(filename,"rb");
     if (!fp) {
         perror("fopen");
         return -1;
     }
     fread(buffer, sizeof(unsigned char),count,fp);
     fclose(fp);
+    */
 
     int cycle = 0;
 
