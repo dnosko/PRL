@@ -202,7 +202,8 @@ void merge(unsigned count){
                 send_data(&queue2, 1, queue_id, requests);
                 ++processed_q2;
                 compared_queue_number = -1;*/
-            printf("Q1 %d  processed %d Q2 %d processed %d \n", Q1_send, processed_q1, Q2_send, processed_q2);
+            //printf("Q1 to be send %d  processed %d Q2 to be send %d processed %d \n", Q1_send, processed_q1, Q2_send, processed_q2);
+            //printf("Q1 size %d Q2 size %d\n", queue1.size(), queue2.size());
 
             if(Q1_send == 0 && Q2_send == 0){
                 Q1_send = max_queue_len;
@@ -266,7 +267,7 @@ void merge(unsigned count){
 
 int main(int argc, char** argv) {
     static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
-    unsigned char buffer[count] = {12,103,151,124,169,99,231,100};//{1,5,3,2, 8, 7, 4, 6};;
+    unsigned char buffer[count] = {100,231,99,169,124,151,103,12};//{1,5,3,2, 8, 7, 4, 6};;
     FILE *fp;
     char filename[] = "numbers";
     MPI_Request  requests[count];
