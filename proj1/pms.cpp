@@ -99,6 +99,8 @@ void merge(unsigned count){
     unsigned counter = change_after;
     unsigned change_tag = -1;
 
+    bool start_processor = false;
+
     unsigned Q1_send = max_queue_len;
     unsigned Q2_send = max_queue_len;
 
@@ -222,16 +224,17 @@ void merge(unsigned count){
                 ++processed_q1;
                 --Q1_send;
             }
-            else if ((queue1.size() <= max_queue_len && queue2.size() == 1)) {
+            else if ((queue1.size() <= max_queue_len && !queue2.empty())) {
+                start_processor = true;
                 //cout << "SEND compare Q2 size " << queue2.size() << endl;
                 //printf("SEND compare Q2 size %d,  Q1 size %d\n",queue2.size(), queue1.size());
                 if (queue1.empty()) {
-                    //cout << "Q1 EMPTY" << endl;
+                    cout << "Q1 EMPTY" << endl;
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                     --Q2_send;
                 } else if (queue2.empty()) {
-                    //cout << "Q2 EMPTY" << endl;
+                    cout << "Q2 EMPTY" << endl;
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                     --Q1_send;
@@ -267,7 +270,7 @@ void merge(unsigned count){
 
 int main(int argc, char** argv) {
     static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
-    unsigned char buffer[count] = {100,231,99,169,124,151,103,12};//{1,5,3,2, 8, 7, 4, 6};;
+    unsigned char buffer[count]; //= //{100,231,99,169,124,151,103,12};//{1,5,3,2, 8, 7, 4, 6}; //{12,103,151,124,169,99,231,100};//;;
     FILE *fp;
     char filename[] = "numbers";
     MPI_Request  requests[count];
@@ -281,14 +284,13 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &procs_id);
 
     // read file to queue
-    /*fp = fopen(filename,"rb");
+    fp = fopen(filename,"rb");
     if (!fp) {
         perror("fopen");
         return -1;
     }
     fread(buffer, sizeof(unsigned char),count,fp);
     fclose(fp);
-    */
 
     int cycle = 0;
 
