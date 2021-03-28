@@ -152,7 +152,7 @@ void merge(unsigned count){
                     take_from_Q1 = QUEUE_2;
                     compared = 1;
                     //compared_queue_number = 2;
-                } else if (queue1.front() < queue2.front()) {
+                } else if (queue1.front() <= queue2.front()) {
                     send_data(&queue2, 1, queue_id, requests);
                     //printf("Q2 front %d Q1 front %d\n", queue2.front(), queue1.front());
                     ++processed_q2;
