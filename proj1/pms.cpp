@@ -42,16 +42,8 @@ void send_data(queue<unsigned char>* queue, int n, unsigned queue_id, MPI_Reques
         send = queue->front();
         queue->pop();
         MPI_Isend(&send,1, MPI_UNSIGNED_CHAR, procs_id+1, queue_id, MPI_COMM_WORLD, requests);
-        printf("DEBUG: TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id, send,
-               procs_id);
-    }
-}
-
-void print_queue_while_not_empty(queue<unsigned char> *queue){
-
-    while(!queue->empty()){
-        printf("%d\n", (int)  queue->front());
-        queue->pop();
+        //printf("DEBUG: TAG %d SEND CISLO %d RANK POSIELA: %d\n", queue_id, send,
+        //       procs_id);
     }
 }
 
@@ -77,12 +69,6 @@ void merge(unsigned count){
 
     unsigned max_queue_len_next = 1 << (procs_id);
 
-    /*for(int i = 0; i < count; i++) {
-        MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, QUEUE_1, MPI_COMM_WORLD, &recv_status);
-        //queue2.push(element);
-        //MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id-1, 1, MPI_COMM_WORLD, &recv_status);
-        printf("DEBUG: RECV CISLO %d RANK DOSTAL: %d\n", element, procs_id);
-    }*/
 
     unsigned recv = 0;
     int compared = -1; // no number is being compared if -1, if else then send this number
@@ -109,11 +95,6 @@ void merge(unsigned count){
         //cout << "############### NEW CYCLE " << cycle << " ################" << endl;
         //recv elements
         if(recv < count) {
-            /*if(recv == (count-3)){
-                //cout << "CHANGE*****" << counter << recv << endl;
-                counter = 0;
-                change_after = 1;
-            }*/
 
             if(counter == 0) {
                 tag = !tag;
@@ -122,13 +103,8 @@ void merge(unsigned count){
             //tag = (recv+1) % (1 << (procs_id));
             //cout  <<"COUNTER "<< counter << " change_after " << change_after << " RANK " << procs_id << endl;
             MPI_Recv(&element, 1, MPI_UNSIGNED_CHAR, procs_id - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status);
-            printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", tag, element, procs_id);
+            //printf("DEBUG: TAG %d RECV CISLO %d RANK DOSTAL: %d\n", tag, element, procs_id);
 
-            /*if(queue1.empty() || !queue2.empty()) {
-                queue1.push(element);
-            }
-            else
-             */
             if(tag == 0){
                 queue1.push(element);
             }
@@ -153,7 +129,7 @@ void merge(unsigned count){
                     //compared_queue_number = 2;
                 }
                 else {
-                    printf("Q1 front %d Q2 front %d\n", queue1.front(), queue2.front());
+                    //printf("Q1 front %d Q2 front %d\n", queue1.front(), queue2.front());
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                     take_from_Q1 = QUEUE_1;
@@ -163,11 +139,11 @@ void merge(unsigned count){
             }
             else if(start_last_process) {
                 if (queue1.empty()) {
-                    cout << "Q1 EMPTY" << endl;
+                   // cout << "Q1 EMPTY" << endl;
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                 } else if (queue2.empty()) {
-                    cout << "Q2 EMPTY" << endl;
+                    //cout << "Q2 EMPTY" << endl;
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                 } else if (queue1.front() > queue2.front()) {
@@ -178,7 +154,7 @@ void merge(unsigned count){
                     //compared_queue_number = 2;
                 } else if (queue1.front() < queue2.front()) {
                     send_data(&queue2, 1, queue_id, requests);
-                    printf("Q2 front %d Q1 front %d\n", queue2.front(), queue1.front());
+                    //printf("Q2 front %d Q1 front %d\n", queue2.front(), queue1.front());
                     ++processed_q2;
                     take_from_Q1 = QUEUE_1;
                     compared = 2;
@@ -189,37 +165,19 @@ void merge(unsigned count){
         }
         else {
             // if there were numbers from previous comparision thne push those
-            //cout << "Q COMPARRED " <<  processed_q2 << endl;
-            unsigned last_element = (count/2) -2;
-            //if(last_element == processed_q2)
-            //    compared_queue_number = -1;
-            /*cout << processed_q1 << "******" << processed_q2 << endl;
-            if (compared_queue_number == 1) {
-                send_data(&queue1, 1, queue_id, requests);
-                ++processed_q1;
-                --compared;
-                if (compared == 0)
-                    compared_queue_number = -1;
-            } else if (compared_queue_number == 2) {
-                send_data(&queue2, 1, queue_id, requests);
-                ++processed_q2;
-                compared_queue_number = -1;*/
-            //printf("Q1 to be send %d  processed %d Q2 to be send %d processed %d \n", Q1_send, processed_q1, Q2_send, processed_q2);
-            //printf("Q1 size %d Q2 size %d\n", queue1.size(), queue2.size());
-
             if(Q1_send == 0 && Q2_send == 0){
                 Q1_send = max_queue_len;
                 Q2_send = max_queue_len;
             }
 
             if(Q1_send == 0 && Q2_send != 0) {
-                printf("Q full\n");
+                //printf("Q full\n");
                 send_data(&queue2, 1, queue_id, requests);
                 ++processed_q2;
                 --Q2_send;
             }
             else if(Q2_send == 0 && Q1_send != 0) {
-                printf("Q1 full\n");
+                //printf("Q1 full\n");
                 send_data(&queue1, 1, queue_id, requests);
                 ++processed_q1;
                 --Q1_send;
@@ -229,12 +187,12 @@ void merge(unsigned count){
                 //cout << "SEND compare Q2 size " << queue2.size() << endl;
                 //printf("SEND compare Q2 size %d,  Q1 size %d\n",queue2.size(), queue1.size());
                 if (queue1.empty()) {
-                    cout << "Q1 EMPTY" << endl;
+                    //cout << "Q1 EMPTY" << endl;
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                     --Q2_send;
                 } else if (queue2.empty()) {
-                    cout << "Q2 EMPTY" << endl;
+                    //cout << "Q2 EMPTY" << endl;
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                     --Q1_send;
@@ -269,7 +227,7 @@ void merge(unsigned count){
 }
 
 int main(int argc, char** argv) {
-    static const unsigned count = 8; //TODO zobrat ako parameter? popr spocitat zo suboru
+    static const unsigned count = 16; //TODO zobrat ako parameter? popr spocitat zo suboru
     unsigned char buffer[count]; //= //{100,231,99,169,124,151,103,12};//{1,5,3,2, 8, 7, 4, 6}; //{12,103,151,124,169,99,231,100};//;;
     FILE *fp;
     char filename[] = "numbers";
