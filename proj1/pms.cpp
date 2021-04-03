@@ -80,7 +80,7 @@ void merge(unsigned count){
         if(procs_id == last_procs) {
             if(queue1.size() == max_queue_len && queue2.size() == 1) {
                 start_last_process = true;
-                if (queue1.front() > queue2.front()) {
+                if (queue1.front() < queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                 }
@@ -96,10 +96,10 @@ void merge(unsigned count){
                 } else if (queue2.empty()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
-                } else if (queue1.front() > queue2.front()) {
+                } else if (queue1.front() < queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
-                } else if (queue1.front() <= queue2.front()) {
+                } else if (queue1.front() >= queue2.front()) {
                     send_data(&queue2, 1, queue_id, requests);
                     ++processed_q2;
                 }
@@ -132,7 +132,7 @@ void merge(unsigned count){
                     ++processed_q1;
                     --Q1_send;
                 }
-                else if (queue1.front() > queue2.front()) {
+                else if (queue1.front() < queue2.front()) {
                     send_data(&queue1, 1, queue_id, requests);
                     ++processed_q1;
                     --Q1_send;
