@@ -1,4 +1,4 @@
- #!/usr/bin/env bash
+ #!/usr/bin/sh
 
 NUM=16
 PROC=$(echo 'l(16)/l(2)' | bc -l)
