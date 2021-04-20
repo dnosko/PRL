@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import subprocess
+import re
 
 class bcolors:
     HEADER = '\033[95m'
@@ -15,7 +16,7 @@ class bcolors:
 
 class Test:
     max_processors = 20
-    program_name = "mm"
+    program_name = "hello"#"mm"
     program_ext = ".cpp"
     path = os.path.dirname(os.path.abspath(__file__))
     passed = False
@@ -54,8 +55,9 @@ class Test:
         # bla bla do multiplictation and write result
         self.__create_files()
         #args = "mpirun -np " + self.processors + self.program_name
-        #self.run_cpp(args, self.program_name+self.program_ext)
-
+        args = "./hello"
+        self.run_cpp(args, self.program_name+self.program_ext)
+        self.compare_output()
         #compare
         if (self.passed):
             print(f"{bcolors.OKGREEN}Passed " +self.name +f"{bcolors.ENDC}")
@@ -65,8 +67,38 @@ class Test:
             return False
         
     def run_cpp(self, args, filename):
-        proc = subprocess.Popen([args, filename])
+        proc = subprocess.Popen([os.path.join(self.path,args), os.path.join(self.path,filename)], stdout=subprocess.PIPE)
+        self.output = proc.stdout.read()
         proc.wait()
+
+    def read_output(self, output):
+        output = output.decode('ascii')
+        splitted = output.split('\n', maxsplit=1)
+        rows, cols = splitted[0].split(':')
+        rows = int(rows)
+        cols = int(cols)
+
+        # replace spaces and new line into comma 
+        mat = re.split(' |\n',splitted[1])
+
+        # if the last element is \n or white space
+        if mat[-1] == '' or mat[-1] == "\n":
+            mat = mat[:-1]
+
+        mat = np.array(mat)
+        # reshape to matrix
+        matrix = mat.reshape(rows, cols)
+        matrix = matrix.astype(np.int)
+
+        return rows, cols, matrix
+    
+    def compare_output(self):
+        r, c, matrix = self.read_output(self.output)
+
+        if r == self.rows and c == self.cols and np.all(matrix == self.product):
+            self.passed = True
+        else:
+            self.passed = False
 
     def destruct_files(self):
         os.remove("mat1")
@@ -74,10 +106,6 @@ class Test:
 
 
 class Tests:
-    matrixes = [
-        [[1,-1],[2, 2],[3, 3]], [[1, -2, -2, -8], [-1, -2, 7, 10]],
-        [[1, 0],[0, 1]],[[4, 1],[2, 2]]
-    ]
 
     def __init__(self, tests):
         self.tests = tests
@@ -95,15 +123,6 @@ class Tests:
                     
 
 if __name__ == "__main__":
-    """test = Test([[1,-1],
-                [2, 2],
-                [3, 3]], 
-                [[1, -2, -2, -8], 
-                [-1, -2, 7, 10]], "test1")
-    test = Test([[1, 0],
-                [0, 1]],
-                 [[4, 1],
-              [2, 2]], "test2")"""
     tests = Tests([
         Test([[1,-1],[2, 2],[3, 3]], [[1, -2, -2, -8], [-1, -2, 7, 10]], "test1"), 
         Test([[1, 0],[0, 1]],[[4, 1],[2, 2]], "test2")
