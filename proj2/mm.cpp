@@ -58,17 +58,30 @@ vector<int> loadMatrix(string filename, int *rows, int *cols){
     return matrix;
 }
 
-void distributeMatrixValues(vector<int> matrix, int tag, int rows, int cols, int cols_final){
+void distributeMatrixValues(vector<int>* matrix, int tag, int rows, int cols, int cols_final){
     int mat_idx;
     int send_to;
     for (int i = 0; i < rows; i++) {
         for(int j = 0; j < cols; j++) {
             mat_idx = j + (i* cols);
             // next process id = j + (i*cols)
+            cout << "here" <<endl;
+            cout << &matrix[mat_idx] << endl;
             send_to = (tag == FIRST_ROWS) ? (i*cols_final) : j ;
             MPI_Send(&matrix[mat_idx], 1, MPI_INT, send_to, tag, MPI_COMM_WORLD);
         }
     }
+}
+
+vector<int> receiveDistibutedMatrix(int tag, int count, MPI_Status recv_status) {
+    int element;
+    vector<int> return_vector;
+    for(int i = 0; i < count; i++){
+        MPI_Recv(&element,1,MPI_INT,0,tag,MPI_COMM_WORLD, &recv_status);
+        printf("Procesor %d dostal cislo %d",procs_id, element);
+        return_vector.push_back(element);
+    }
+    return return_vector;
 }
 
 
@@ -89,6 +102,7 @@ int main(int argc, char** argv) {
     int rows_mat2;
     int cols_mat2;
     vector<int> matrix1, matrix2;
+    vector<int> col, row; // each  processor has only one column and one row of values
     int matMul = 0;
     int i_index, j_index, matPos;
     
@@ -106,7 +120,6 @@ int main(int argc, char** argv) {
             MPI_Send(&rows_mat1, 1, MPI_INT, i, R1, MPI_COMM_WORLD);
             MPI_Send(&rows_mat2, 1, MPI_INT, i, R2, MPI_COMM_WORLD);
         }
-        //cout << "proc 0" << endl;
     }
     else {
         MPI_Recv(&cols_mat1, 1, MPI_INT, 0, C1, MPI_COMM_WORLD, &recv_status);
@@ -119,22 +132,25 @@ int main(int argc, char** argv) {
 
     // send parts of matrix to first rows / cols -> tags firstRows firstCols
 
-    if(procs_id == 0) {
-        distributeMatrixValues(matrix1, FIRST_ROWS, rows_mat1, cols_mat1, cols_mat2);
-        distributeMatrixValues(matrix2, FIRST_COLS, cols_mat2, rows_mat2, cols_mat2);
+    if (procs_id == 0) {
+        distributeMatrixValues(&matrix1, FIRST_ROWS, rows_mat1, cols_mat1, cols_mat2);
+        distributeMatrixValues(&matrix2, FIRST_COLS, cols_mat2, rows_mat2, cols_mat2);
     }
 
     i_index = procs_id / cols_mat2;
     j_index = procs_id % cols_mat2;
-    int element = -1;
-    if(i_index == 0){
-        for(int i = 0; i < rows_mat2; i++){
-            MPI_Recv(&element,1,MPI_INT,)
-        }
-    }
+
+    if(i_index == 0)
+        col = receiveDistibutedMatrix(FIRST_ROWS, rows_mat2,recv_status);
+
+    if(j_index == 0)
+        row = receiveDistibutedMatrix(FIRST_COLS, cols_mat1,recv_status);
+
     // recv on first
 
-
+    //MPI_Barrier(MPI_COMM_WORLD);
+    // Finalize the MPI environment.
+    MPI_Finalize();
 
     return 0;
 }
