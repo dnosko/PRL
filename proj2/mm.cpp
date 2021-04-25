@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <mpi.h>
+#include <unistd.h>
 
 /********************** TAGS **********************/
 #define C1 1
@@ -92,8 +93,9 @@ vector<int> receiveDistibutedMatrix(int tag, int count, MPI_Status recv_status, 
     int element;
     vector<int> return_vector;
     for(int i = 0; i < count; i++){
+        printf("in RCV proc %d\n",procs_id);
         MPI_Recv(&element,1,MPI_INT,source,tag,MPI_COMM_WORLD, &recv_status);
-        printf("Procesor %d dostal cislo %d od %d \n",procs_id, element, source);
+        printf("RECV: P %d FROM: %d M: %d RCV\n ", procs_id, source, element);
         return_vector.push_back(element);
     }
     return return_vector;
@@ -107,6 +109,9 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
     int indexI = countIindex(procs_id, cols);
 
     MPI_Status recv_status;
+    MPI_Request request;
+
+    int count = 0;
 
     for(int i = 0; i < cols; i++) {
         if(!indexI) { // first row
@@ -114,8 +119,10 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
             row->erase(row->begin());
         }
         else {
-            prev_proc = (indexJ-1) + (indexI*cols);
+            prev_proc = (indexJ) + ((indexI-1)*cols);
+            printf("prev_proc INDEXI%d\n", prev_proc);
             MPI_Recv(&a, 1, MPI_INT, prev_proc, NEXT_COL, MPI_COMM_WORLD, &recv_status);
+            printf("RECV: P %d FROM: %d M: %d MUL A\n ", procs_id, prev_proc, a);
         }
 
         if(!indexJ) { // first column
@@ -123,22 +130,34 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
             col->erase(col->begin());
         }
         else {
-            prev_proc = indexJ + ((indexI-1)*cols);
+            prev_proc = (indexJ-1) + ((indexI)*cols);
+            printf("prev_proc INDEXJ %d\n", prev_proc);
             MPI_Recv(&b, 1, MPI_INT, prev_proc, NEXT_ROW, MPI_COMM_WORLD, &recv_status);
+            printf("RECV: P %d FROM: %d M: %d MUL B\n ", procs_id, prev_proc, b);
         }
 
-        mul += a*b;
+        mul = mul + a*b;
+        printf("mul %d\n", mul);
 
         printf("%d: prvy riadok: A=%d\n",procs_id,a);
         printf("%d: prvy stlpec: B=%d\n",procs_id,b);
 
         int next_proc;
-        if (indexI < rows -1) {
+        printf("index i %d index J %d proc %d\n",indexI, indexJ,procs_id);
+        if (indexI < rows) {
             next_proc = (indexJ+1) + (indexI*cols);
+            //if(next_proc > world_rank-1) break;
+            printf("next_proc %d\n", next_proc);
+            printf("SEND: P %d TO: %d M: %d MUL A\n", procs_id, next_proc, a);
             MPI_Send(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD);
+            //MPI_Isend(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD, &request);
+
         }
-        if (indexJ < cols -1) {
+        if (indexJ < cols) {
             next_proc = indexJ + ((indexI+1)*cols);
+            //if(next_proc >= world_rank) break;
+            printf("SEND: P %d TO: %d M: %d MUL B\n", procs_id, next_proc, b);
+            //MPI_Isend(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD, &request);
             MPI_Send(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD);
         }
     }
@@ -148,9 +167,6 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
 
 
 int main(int argc, char** argv) {
-    int count;
-    MPI_Request  requests[count];
-    MPI_Status recv_status;
 
     // MPI INIT
     MPI_Init(&argc, &argv);
@@ -159,13 +175,17 @@ int main(int argc, char** argv) {
     // Get the id of the process
     MPI_Comm_rank(MPI_COMM_WORLD, &procs_id);
 
+    cout << "proc" << procs_id << endl;
+    MPI_Request  requests[world_rank];
+    MPI_Status recv_status;
+
     int rows_mat1;
     int cols_mat1;
     int rows_mat2;
     int cols_mat2;
     vector<int> matrix1, matrix2;
     vector<int> col, row; // each  processor has only one column and one row of values
-    int matMul = 0;
+    vector<int> matMul;
     int i_index, j_index, matPos;
     
 
@@ -182,6 +202,9 @@ int main(int argc, char** argv) {
             MPI_Send(&rows_mat1, 1, MPI_INT, i, R1, MPI_COMM_WORLD);
             MPI_Send(&rows_mat2, 1, MPI_INT, i, R2, MPI_COMM_WORLD);
         }
+
+
+        //MPI_Waitall(world_rank, requests, MPI_STATUSES_IGNORE);
     }
     else {
         MPI_Recv(&cols_mat1, 1, MPI_INT, 0, C1, MPI_COMM_WORLD, &recv_status);
@@ -193,18 +216,31 @@ int main(int argc, char** argv) {
     //matPos = j + (i*cols_mat2);
 
     // send parts of matrix to first rows / cols -> tags firstRows firstCols
+    cout << "PROCESS" << procs_id << endl;
+    i_index = countIindex(procs_id, cols_mat2);
+    j_index = countJindex(procs_id, cols_mat2);
 
     if (procs_id == 0) {
         int mat_idx;
         int r = 0;
+        int matsize1 = rows_mat1*cols_mat1;
+        int matsize2 = rows_mat2*cols_mat2;
+        MPI_Request  req_mat1[matsize1], req_mat2[matsize2];
         for (int i = 0; i < rows_mat1; i++) {
             for (int j = 0; j < cols_mat1; j++) {
                 mat_idx = j + (i * cols_mat1);
                 // next process id = j + (i*cols)
-                cout << "here" << endl;
+                cout << "here";
                 cout << matrix1[mat_idx] << endl;
                 //send_to = (tag == FIRST_ROWS) ? (i*cols_final) : j ;
-                MPI_Isend(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD, requests);
+                if(i*cols_mat2 == 0) {
+                    row.push_back(matrix1[mat_idx]);
+                    --matsize1;
+                    continue;
+                }
+                //MPI_Send(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD);
+                MPI_Isend(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD, &req_mat1[--matsize1]);
+                printf("SEND: P %d TO: %d M: %d\n", procs_id, i*cols_mat2, matrix1[mat_idx]);
                 r++;
             }
         }
@@ -215,25 +251,64 @@ int main(int argc, char** argv) {
                 // next process id = j + (i*cols)
                 cout << matrix2[mat_idx] << endl;
                 //send_to = (tag == FIRST_ROWS) ? (i*cols_final) : j ;
-                MPI_Isend(&matrix2[mat_idx], 1, MPI_INT, j, FIRST_COLS, MPI_COMM_WORLD, requests);
+                if(j == 0) {
+                    col.push_back(matrix2[mat_idx]);
+                    --matsize2;
+                    continue;
+                }
+                //MPI_Send(&matrix2[mat_idx], 1, MPI_INT, j, FIRST_COLS, MPI_COMM_WORLD);
+                MPI_Isend(&matrix2[mat_idx], 1, MPI_INT, j, FIRST_COLS, MPI_COMM_WORLD, &req_mat2[--matsize2]);
+                printf("SEND: P %d TO: %d M: %d\n", procs_id, j, matrix1[mat_idx]);
             }
         }
         //distributeMatrixValues(&matrix1, FIRST_ROWS, rows_mat1, cols_mat1, cols_mat2);
         //distributeMatrixValues(&matrix2, FIRST_COLS, cols_mat2, rows_mat2, cols_mat2);
+        //MPI_Waitall(matsize1, req_mat1, MPI_STATUSES_IGNORE);
+        //MPI_Waitall(matsize2, req_mat2, MPI_STATUSES_IGNORE);
+    }
+    else {
+        if (i_index == 0) {
+            cout << procs_id << " index 0" << endl;
+            // TODO ostatne procesy predbiehaju ten prvy takze ked ziara recv tak este nebol send a je deadlock
+            row = receiveDistibutedMatrix(FIRST_COLS, rows_mat2, recv_status, 0);
+            printf("P %d rows size %zu \n", procs_id, row.size());
+        }
+        if (j_index == 0)
+            col = receiveDistibutedMatrix(FIRST_ROWS, cols_mat1, recv_status, 0);
     }
 
-    i_index = countIindex(procs_id, cols_mat2);
-    j_index = countJindex(procs_id, cols_mat2);
+    int unprocessed = cols_mat2 * rows_mat1;
+    printf("P %d i: %d j: %d\n",procs_id, i_index, j_index );
+    /*while(unprocessed) {
+        if (i_index == 0) {
+            // TODO ostatne procesy predbiehaju ten prvy takze ked ziara recv tak este nebol send a je deadlock
+            row = receiveDistibutedMatrix(FIRST_ROWS, rows_mat2, recv_status, 0);
+            printf("P %d rows size %zu \n",procs_id, row.size() );
+        }
 
-    if(i_index == 0)
-        row = receiveDistibutedMatrix(FIRST_ROWS, rows_mat2,recv_status, 0);
+        if (j_index == 0)
+            col = receiveDistibutedMatrix(FIRST_COLS, cols_mat1, recv_status, 0);
+        //cout << "proces " << procs_id << endl;
+        multiply(rows_mat1, cols_mat2, &row, &col);
+        unprocessed = 0;
+        cout << "proces afte mul " << procs_id << endl;
+    }*/
 
-    if(j_index == 0)
-        col = receiveDistibutedMatrix(FIRST_COLS, cols_mat1,recv_status, 0);
-
-    multiply(rows_mat1, cols_mat2, &row, &col);
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    int mul = multiply(rows_mat1, cols_mat2, &row, &col);
+    cout << "proces afte mul " << procs_id << endl;
+    matMul.push_back(mul);
+    /*if(procs_id != 0){
+        MPI_Send(&mul,1,MPI_INT,0,10, MPI_COMM_WORLD);
+    }
+    else {
+        for(int i = 1; i < world_rank-1; i++){
+            cout << "WAIT " << endl;
+            //MPI_Recv(&mul, 1, MPI_INT, i, 10, MPI_COMM_WORLD, &recv_status);
+            //matMul.push_back(mul);
+            //cout << " * "<< mul << " * " << endl;
+        }
+    }*/
+    //MPI_Barrier(MPI_COMM_WORLD);
     // Finalize the MPI environment.
     MPI_Finalize();
 
