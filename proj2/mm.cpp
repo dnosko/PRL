@@ -127,7 +127,7 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
             prev_proc = (indexJ) + ((indexI-1)*cols);
             printf("A:%d first row: prev_proc %d NEXT_COL \n",a, prev_proc);
             MPI_Recv(&b, 1, MPI_INT, prev_proc, NEXT_ROW, MPI_COMM_WORLD, &recv_status);
-            printf("RECV: P %d FROM: %d M: %d MUL B\n ", procs_id, prev_proc, a);
+            printf("RECV: P %d FROM: %d M: %d MUL B\n ", procs_id, prev_proc, b);
         }
 
         if(indexJ == 0) { // first column
@@ -141,7 +141,7 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
             prev_proc = (indexJ-1) + ((indexI)*cols);
             //printf("B:%d first col: prev_proc %d NEXT_ROW \n",b, prev_proc);
             MPI_Recv(&a, 1, MPI_INT, prev_proc, NEXT_COL, MPI_COMM_WORLD, &recv_status);
-            printf("RECV: P %d FROM: %d M: %d MUL A\n ", procs_id, prev_proc, b);
+            printf("RECV: P %d FROM: %d M: %d MUL A\n ", procs_id, prev_proc, a);
         }
 
         mul = mul + (a*b);
@@ -337,13 +337,15 @@ int main(int argc, char** argv) {
         MPI_Send(&mul,1,MPI_INT,0,10, MPI_COMM_WORLD);
     }
     else {
-        for(int i = 1; i < world_rank-1; i++){
+        for(int i = 1; i < world_rank; i++){
             //cout << "WAIT " << endl;
             MPI_Recv(&mul, 1, MPI_INT, i, 10, MPI_COMM_WORLD, &recv_status);
             matMul.push_back(mul);
         }
         for(int i = 0; i< matMul.size(); i++){
-            cout << "MUL " << i << ":" << matMul[i] << endl;
+            //cout << matMul[i] << endl;
+            if ((i+1) % cols_mat2 == 0) cout << "\n";
+            else cout << " ";
         }
     }
 
