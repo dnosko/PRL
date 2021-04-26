@@ -118,33 +118,33 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
     while(unprocessed) {
         printf("PROCESS %d in MUL JINDEX %d IINDEX %d \n",procs_id, indexJ, indexI);
         if(indexI == 0) { // first row
-            printf("I index: %d sizeof a %zu size of b %zu\n", indexI, row->size(), col->size());
+            //printf("I index: %d sizeof a %zu size of b %zu\n", indexI, row->size(), col->size());
             b = col->at(0);
-            printf("B in first row %d\n",b);
+            //printf("B in first row %d\n",b);
             col->erase(col->begin());
         }
         else {
             prev_proc = (indexJ) + ((indexI-1)*cols);
             printf("A:%d first row: prev_proc %d NEXT_COL \n",a, prev_proc);
-            MPI_Recv(&a, 1, MPI_INT, prev_proc, NEXT_ROW, MPI_COMM_WORLD, &recv_status);
-            printf("RECV: P %d FROM: %d M: %d MUL A\n ", procs_id, prev_proc, a);
+            MPI_Recv(&b, 1, MPI_INT, prev_proc, NEXT_ROW, MPI_COMM_WORLD, &recv_status);
+            printf("RECV: P %d FROM: %d M: %d MUL B\n ", procs_id, prev_proc, a);
         }
 
         if(indexJ == 0) { // first column
-            printf("J index: %d \n", indexJ);
+            //printf("J index: %d \n", indexJ);
             a = row->at(0);
             row->erase(row->begin());
-            printf("A in first col %d\n",a);
+            //printf("A in first col %d\n",a);
         }
         else {
             //cout << "*********************here J" << endl;
             prev_proc = (indexJ-1) + ((indexI)*cols);
-            printf("B:%d first col: prev_proc %d NEXT_ROW \n",b, prev_proc);
-            MPI_Recv(&b, 1, MPI_INT, prev_proc, NEXT_COL, MPI_COMM_WORLD, &recv_status);
-            printf("RECV: P %d FROM: %d M: %d MUL B\n ", procs_id, prev_proc, b);
+            //printf("B:%d first col: prev_proc %d NEXT_ROW \n",b, prev_proc);
+            MPI_Recv(&a, 1, MPI_INT, prev_proc, NEXT_COL, MPI_COMM_WORLD, &recv_status);
+            printf("RECV: P %d FROM: %d M: %d MUL A\n ", procs_id, prev_proc, b);
         }
 
-        mul = mul + a*b;
+        mul = mul + (a*b);
         unprocessed--;
         printf("P %d: muliplying %d * %d += %d\n",procs_id, a,b,mul);
 
@@ -153,21 +153,20 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
 
         int next_proc;
         printf("index i %d index J %d proc %d\n",indexI, indexJ,procs_id);
-        if (indexI < rows) {
+        if (indexJ < cols-1) {
             next_proc = (indexJ+1) + (indexI*cols);
-            if(next_proc > world_rank-1) break;
+            if(next_proc >= world_rank) break;
             printf("next_proc %d\n", next_proc);
             printf("SEND: P %d TO: %d M: %d MUL A\n", procs_id, next_proc, a);
-            //MPI_Send(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD);
-            MPI_Isend(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD, &request);
-
+            MPI_Send(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD);
+            //MPI_Isend(&a, 1, MPI_INT, next_proc, NEXT_COL, MPI_COMM_WORLD, &request);
         }
-        if (indexJ < cols) {
+        if (indexI < rows-1) {
             next_proc = indexJ + ((indexI+1)*cols);
             if(next_proc >= world_rank) break;
             printf("SEND: P %d TO: %d M: %d MUL B\n", procs_id, next_proc, b);
-            MPI_Isend(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD, &request);
-            //MPI_Send(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD);
+            //MPI_Isend(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD, &request);
+            MPI_Send(&b, 1, MPI_INT, next_proc, NEXT_ROW, MPI_COMM_WORLD);
         }
     }
 
@@ -344,7 +343,7 @@ int main(int argc, char** argv) {
             matMul.push_back(mul);
         }
         for(int i = 0; i< matMul.size(); i++){
-            cout << "MUL " <<i << matMul[i] << endl;
+            cout << "MUL " << i << ":" << matMul[i] << endl;
         }
     }
 
