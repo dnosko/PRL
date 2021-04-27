@@ -208,9 +208,10 @@ int main(int argc, char** argv) {
         matrix1.push_back(4);
         rows_mat1 = 2;
         cols_mat1 = 2;
+         ******/
         rows_mat2 = -1;
         cols_mat2 = 0;
-        ******/
+
         matrix2 = loadMatrix("mat2", &rows_mat2, &cols_mat2);
         /*************
         matrix2.push_back(5);
@@ -266,6 +267,7 @@ int main(int argc, char** argv) {
                     --matsize1;
                     continue;
                 }
+                printf("COLS MAT2 %d\n",cols_mat2);
                 //MPI_Send(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD);
                 MPI_Isend(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD, &req_mat1[--matsize1]);
                 printf("SEND: P %d TO: %d M: %d\n", procs_id, i*cols_mat2, matrix1[mat_idx]);
@@ -343,7 +345,7 @@ int main(int argc, char** argv) {
             matMul.push_back(mul);
         }
         for(int i = 0; i< matMul.size(); i++){
-            //cout << matMul[i] << endl;
+            cout << matMul[i];
             if ((i+1) % cols_mat2 == 0) cout << "\n";
             else cout << " ";
         }
