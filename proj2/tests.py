@@ -2,6 +2,8 @@ import numpy as np
 import os
 import subprocess
 import re
+import invoke
+import sys
 
 class bcolors:
     HEADER = '\033[95m'
@@ -16,7 +18,7 @@ class bcolors:
 
 class Test:
     max_processors = 20
-    program_name = "hello"#"mm"
+    program_name = "mm"
     program_ext = ".cpp"
     path = os.path.dirname(os.path.abspath(__file__))
     passed = False
@@ -30,7 +32,7 @@ class Test:
         print(self.product)
         self.__check_processors()
         
-    def __create_files(self):
+    def create_files(self):
         
         mat1_f = open(os.path.join(self.path, "mat1"), "w")
         self.write_to_file(self.rows, self.mat1, mat1_f)
@@ -53,9 +55,9 @@ class Test:
 
     def run(self):
         # bla bla do multiplictation and write result
-        self.__create_files()
-        #args = "mpirun -np " + self.processors + self.program_name
-        args = "./hello"
+        self.create_files()
+        args = "mpirun -np " + str(self.processors) + " " + self.path + "/./mm"
+        #args = "./hello"
         self.run_cpp(args, self.program_name+self.program_ext)
         self.compare_output()
         #compare
@@ -67,12 +69,15 @@ class Test:
             return False
         
     def run_cpp(self, args, filename):
-        proc = subprocess.Popen([os.path.join(self.path,args), os.path.join(self.path,filename)], stdout=subprocess.PIPE)
-        self.output = proc.stdout.read()
-        proc.wait()
+        invoke.run(args)
+        #proc = subprocess.Popen([os.path.join(self.path,args), os.path.join(self.path,filename)], stdout=subprocess.PIPE)
+        #stream = os.popen(args)
+        self.output = sys.stdout.read()
+        #proc.wait()
 
     def read_output(self, output):
-        output = output.decode('ascii')
+        print(output)
+        #output = output.decode('ascii')
         splitted = output.split('\n', maxsplit=1)
         rows, cols = splitted[0].split(':')
         rows = int(rows)
@@ -101,8 +106,9 @@ class Test:
             self.passed = False
 
     def destruct_files(self):
-        os.remove("mat1")
-        os.remove("mat2")
+        #os.remove("mat1")
+        #os.remove("mat2")
+        pass
 
 
 class Tests:
@@ -125,6 +131,12 @@ class Tests:
 if __name__ == "__main__":
     tests = Tests([
         Test([[1,-1],[2, 2],[3, 3]], [[1, -2, -2, -8], [-1, -2, 7, 10]], "test1"), 
-        Test([[1, 0],[0, 1]],[[4, 1],[2, 2]], "test2")
+        Test([[1, 0],[0, 1]],[[4, 1],[2, 2]], "test2"),
+        Test([[1,0],[1,2],[1,3]],[[0,1,2],[0,1,2]], "test3"),
+        Test([[1,0,3],[4,5,6]],[[0,0,0],[1,1,1],[2,2,2]], "test4"),
+        Test([[1,0,0,0],[1,2,0,0],[5,5,4,3],[2,1,3,4]],
+            [[1,0,0,1,1],[1,0,0,1,1],[1,0,0,1,1],[1,0,0,1,1]], "test5"),
+        Test([[-50,-100],[-255,300],[0,0],[-1000,1000]],[[1,2,3,4,5],[0,1,2,0,1]], "test6")    
         ])
-    tests.run_tests()
+    tests.tests[5].create_files()
+    #tests.run_tests()
