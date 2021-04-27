@@ -171,6 +171,17 @@ int multiply(int process,int rows, int cols, vector<int>* row, vector<int>* col)
     return mul;
 }
 
+void printToOutput(int rows, int cols, vector<int> mul){
+    if(procs_id == 0) {
+        printf("%d:%d\n", rows, cols);
+        for (int i = 0; i < mul.size(); i++) {
+            printf("%d", mul[i]);
+            if ((i + 1) % cols == 0) cout << "\n";
+            else cout << " ";
+        }
+    }
+}
+
 
 int main(int argc, char** argv) {
 
@@ -331,24 +342,21 @@ int main(int argc, char** argv) {
     //cout << "HERE";
     //printf("size rows %zu, cols %zu\n", row.size(),col.size());
     int mul = multiply(cols_mat1, rows_mat1, cols_mat2, &row, &col);
-    cout << "proces afte mul " << procs_id << endl;
+    //cout << "proces afte mul " << procs_id << endl;
     MPI_Barrier(MPI_COMM_WORLD);
-    matMul.push_back(mul);
+
     if(procs_id != 0){
         MPI_Send(&mul,1,MPI_INT,0,10, MPI_COMM_WORLD);
     }
     else {
+        matMul.push_back(mul);
         for(int i = 1; i < world_rank; i++){
-            //cout << "WAIT " << endl;
             MPI_Recv(&mul, 1, MPI_INT, i, 10, MPI_COMM_WORLD, &recv_status);
             matMul.push_back(mul);
         }
-        for(int i = 0; i< matMul.size(); i++){
-            cout << matMul[i];
-            if ((i+1) % cols_mat2 == 0) cout << "\n";
-            else cout << " ";
-        }
     }
+
+    printToOutput(rows_mat1,cols_mat2,matMul);
 
     // Finalize the MPI environment.
     MPI_Finalize();
