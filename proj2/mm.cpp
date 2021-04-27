@@ -97,7 +97,7 @@ vector<int> receiveDistibutedMatrix(int tag, int count, MPI_Status recv_status, 
     return return_vector;
 }
 
-int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
+int multiply(int process,int rows, int cols, vector<int>* row, vector<int>* col) {
     int mul = 0;
     int a, b;
     int prev_proc;
@@ -108,11 +108,13 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
     MPI_Request request;
 
     int count = 0;
-    int unprocessed = rows;
+    int unprocessed = process;
 
     //printf("COLS SIZE %d\n",cols);
     while(unprocessed) {
         printf("PROCESS %d in MUL JINDEX %d IINDEX %d \n",procs_id, indexJ, indexI);
+        printf("unprocessed %d\n", unprocessed);
+        unprocessed--;
         if(indexI == 0) { // first row
             //printf("I index: %d sizeof a %zu size of b %zu\n", indexI, row->size(), col->size());
             b = col->at(0);
@@ -141,7 +143,7 @@ int multiply(int rows, int cols, vector<int>* row, vector<int>* col) {
         }
 
         mul = mul + (a*b);
-        unprocessed--;
+
         printf("P %d: muliplying %d * %d += %d\n",procs_id, a,b,mul);
 
         //printf("%d: prvy riadok: A=%d\n",procs_id,a);
@@ -328,7 +330,7 @@ int main(int argc, char** argv) {
     //while(procs_id == 3) continue;
     //cout << "HERE";
     //printf("size rows %zu, cols %zu\n", row.size(),col.size());
-    int mul = multiply(rows_mat1, cols_mat2, &row, &col);
+    int mul = multiply(cols_mat1, rows_mat1, cols_mat2, &row, &col);
     cout << "proces afte mul " << procs_id << endl;
     MPI_Barrier(MPI_COMM_WORLD);
     matMul.push_back(mul);
