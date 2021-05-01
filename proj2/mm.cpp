@@ -9,6 +9,8 @@
 #include <vector>
 #include <mpi.h>
 
+#include <chrono>
+
 /********************** TAGS **********************/
 #define C1 1
 #define C2 2
@@ -20,6 +22,7 @@
 #define NEXT_COL 8
 
 using namespace std;
+using namespace chrono;
 
 static int procs_id;
 static int world_rank;
@@ -164,6 +167,7 @@ int main(int argc, char** argv) {
         cols_mat2 = 0;
         matrix2 = loadMatrix("mat2", &rows_mat2, &cols_mat2);
 
+        // send to all processors size of matrixes
         for(int i = 1; i < world_rank; i++) {
             MPI_Send(&cols_mat1, 1, MPI_INT, i, C1, MPI_COMM_WORLD);
             MPI_Send(&cols_mat2, 1, MPI_INT, i, C2, MPI_COMM_WORLD);
@@ -181,32 +185,27 @@ int main(int argc, char** argv) {
     i_index = countIindex(procs_id, cols_mat2);
     j_index = countJindex(procs_id, cols_mat2);
 
+    // distribute parted matrixes to processors in first row and first column
     if (procs_id == 0) {
         int mat_idx;
-        int r = 0;
-        int matsize1 = rows_mat1*cols_mat1;
-        int matsize2 = rows_mat2*cols_mat2;
 
+        // send first matrix
         for (int i = 0; i < rows_mat1; i++) {
             for (int j = 0; j < cols_mat1; j++) {
-                mat_idx = j + (i * cols_mat1);
-                if(i*cols_mat2 == 0) { // P0
+                mat_idx = j + (i * cols_mat1);  // count index
+                if(i*cols_mat2 == 0) { // dont send just save to vector
                     row.push_back(matrix1[mat_idx]);
-                    --matsize1;
                     continue;
                 }
                 MPI_Send(&matrix1[mat_idx], 1, MPI_INT, i * cols_mat2, FIRST_ROWS, MPI_COMM_WORLD);
-                r++;
             }
         }
 
         for (int i = 0; i < rows_mat2; i++) {
             for (int j = 0; j < cols_mat2; j++) {
-                mat_idx = j + (i * cols_mat2);
-
-                if(j == 0) {
+                mat_idx = j + (i * cols_mat2); // count index
+                if(j == 0) { // P0 dont send just save to vector
                     col.push_back(matrix2[mat_idx]);
-                    --matsize2;
                     continue;
                 }
                 MPI_Send(&matrix2[mat_idx], 1, MPI_INT, j, FIRST_COLS, MPI_COMM_WORLD);
@@ -223,9 +222,17 @@ int main(int argc, char** argv) {
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-
+    if(procs_id == 0) {
+        auto duration = high_resolution_clock::now().time_since_epoch();
+        auto t1 = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+        cout << t1 << ",";
+    }
     int mul = multiply(cols_mat1, rows_mat1, cols_mat2, &row, &col);
-
+    if(procs_id == world_rank-1) {
+        auto duration = high_resolution_clock::now().time_since_epoch();
+        auto t2 = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+        cout << t2 ;
+    }
     MPI_Barrier(MPI_COMM_WORLD);
 
     if(procs_id != 0){
@@ -239,7 +246,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    printToOutput(rows_mat1,cols_mat2,matMul);
+    //printToOutput(rows_mat1,cols_mat2,matMul);
+
 
     // Finalize the MPI environment.
     MPI_Finalize();
